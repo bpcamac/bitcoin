@@ -2,12 +2,13 @@
 # Copyright (c) 2017-2020 The Bitcoin Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
-"""An example functional test
+"""Chaincode Labs experimental test 1
+This functional test extends the base behaviour of example_test.py by 
+performing the following additional actions at the end of the test:
+    a) gets Node-1 mine another block
+    b) gets Node-1 send said block to Node-2
+    c) tests whether Node-2 received said block
 
-The module-level docstring should include a high-level description of
-what the test is doing. It's the first thing people see when they open
-the file and should give the reader information about *what* the test
-is testing and *how* it's being tested
 """
 # Imports should be in PEP8 ordering (std library first, then third party
 # libraries then local imports).
@@ -39,6 +40,7 @@ class BaseNode(P2PInterface):
         base class already stores a counter for each P2P message type and the
         last received message of each type, which should be sufficient for the
         needs of most tests.
+
 
         Call super().__init__() first for standard initialization and then
         initialize custom properties."""
@@ -85,6 +87,7 @@ class ExampleTest(BitcoinTestFramework):
         self.extra_args = [[], ["-logips"], []]
 
         # self.log.info("I've finished set_test_params")  # Oops! Can't run self.log before run_test()
+
 
     # Use skip_test_if_missing_module() to skip the test if your test requires certain modules to be present.
     # This test uses generate which requires wallet to be compiled
@@ -153,15 +156,15 @@ class ExampleTest(BitcoinTestFramework):
 
         # Logs are nice. Do plenty of them. They can be used in place of comments for
         # breaking the test into sub-sections.
-        self.log.info("Starting test!")
+        self.log.info("Begin test")
 
-        self.log.info("Calling a custom function")
-        custom_function()
+        # self.log.info("Calling a custom function")
+        # custom_function()
 
-        self.log.info("Calling a custom method")
-        self.custom_method()
+        # self.log.info("Calling a custom method")
+        # self.custom_method()
 
-        self.log.info("Create some blocks")
+        self.log.info("Creating some blocks...")
         self.tip = int(self.nodes[0].getbestblockhash(), 16)
         self.block_time = self.nodes[0].getblock(self.nodes[0].getbestblockhash())['time'] + 1
 
@@ -213,6 +216,36 @@ class ExampleTest(BitcoinTestFramework):
         with p2p_lock:
             for block in peer_receiving.block_receive_map.values():
                 assert_equal(block, 1)
+
+        # start of Chaincode lab test actions
+
+        # Have Node-1 mine another block
+        self.log.info("node1 block count = " + str(self.nodes[1].getblockcount()))
+        self.log.info("node2 block count = " + str(self.nodes[2].getblockcount()))
+        
+        self.log.info("node1 generates another block...")
+        new_block = int(self.nodes[1].generate(nblocks=1)[0], 16)
+        self.log.info("new block = " + str(new_block))
+        self.log.info("node1 block count = " + str(self.nodes[1].getblockcount()))
+
+        # Have Node-1 propagate new block to Node-2 (actually, all nodes)
+        self.log.info("Wait for node2 to receive new block from node1")
+        self.sync_all()
+        self.log.info("node2 block count = " + str(self.nodes[2].getblockcount()))
+
+        # Check that Node-2 received new block
+        getdata_request = msg_getdata()
+        getdata_request.inv.append(CInv(MSG_BLOCK, new_block))
+        peer_receiving.send_message(getdata_request)
+
+        # wait_until() will loop until a predicate condition is met. Use it to test properties of the
+        # P2PInterface objects.
+        peer_receiving.wait_until(lambda: self.nodes[1].getblockcount() == len(peer_receiving.block_receive_map), timeout=5)
+
+        # check that Node-2 has the new_block
+        self.log.info("Confirm that node2 has the new block")
+        assert_equal(new_block in peer_receiving.block_receive_map, True)
+        self.log.info("node2 has the new block")
 
 
 if __name__ == '__main__':
