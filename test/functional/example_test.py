@@ -238,9 +238,8 @@ class ExampleTest(BitcoinTestFramework):
         getdata_request.inv.append(CInv(MSG_BLOCK, new_block))
         peer_receiving.send_message(getdata_request)
 
-        # wait_until() will loop until a predicate condition is met. Use it to test properties of the
-        # P2PInterface objects.
-        peer_receiving.wait_until(lambda: self.nodes[1].getblockcount() == len(peer_receiving.block_receive_map), timeout=5)
+        # wait_until peer_receiving node has as many blocks as node1 (new block originator)
+        peer_receiving.wait_until(lambda: len(peer_receiving.block_receive_map) == self.nodes[1].getblockcount(), timeout=5)
 
         # check that Node-2 has the new_block
         self.log.info("Confirm that node2 has the new block")
